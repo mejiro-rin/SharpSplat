@@ -1,0 +1,15 @@
+[project]
+name = "sharpsplat"
+version = "0.1.0"
+description = "SHARP 3D Gaussian Splatting 图形化管理工具"
+requires-python = ">=3.13"
+dependencies = [
+    "gradio>=6.20.0",
+    "sharp",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+sharp = { path = "ml-sharp", editable = true }

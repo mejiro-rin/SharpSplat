@@ -1,0 +1,10 @@
+.vscode/
+# .idea/
+.venv/
+.DS_Store
+
+
+outputs/
+uploads/
+
+ml-sharp/
