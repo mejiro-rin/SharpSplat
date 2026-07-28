@@ -1,8 +1,0 @@
-pyproject.toml
-src/sharpsplat/__init__.py
-src/sharpsplat/app.py
-src/sharpsplat.egg-info/PKG-INFO
-src/sharpsplat.egg-info/SOURCES.txt
-src/sharpsplat.egg-info/dependency_links.txt
-src/sharpsplat.egg-info/requires.txt
-src/sharpsplat.egg-info/top_level.txt
