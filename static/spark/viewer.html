@@ -11,6 +11,8 @@
     #title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
     #status { font-size: 13px; color: #b8c3d9; line-height: 1.5; }
     #status.error { color: #ffb4b4; }
+    #fs-btn { position: fixed; right: 16px; top: 16px; z-index: 3; width: 36px; height: 36px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(10,15,28,0.72); backdrop-filter: blur(12px); color: #b8c3d9; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; }
+    #fs-btn:hover { background: rgba(40,50,80,0.8); color: #e8eefc; }
   </style>
   <script type="importmap">
     {
@@ -20,9 +22,10 @@
         "@sparkjsdev/spark": "./spark.module.js"
       }
     }
-  </script>
+</script>
 </head>
 <body>
+  <button id="fs-btn" title="Fullscreen">&#x26F6;</button>
   <div id="overlay">
     <div id="title">SharpSplat Viewer</div>
     <div id="status">Loading viewer...</div>
@@ -127,6 +130,7 @@
         if (keys['d'] || keys['D']) { camera.position.addScaledVector(right, MOVE_SPEED * dt); }
         if (keys['q'] || keys['Q']) { camera.position.addScaledVector(upv, MOVE_SPEED * dt); }
         if (keys['e'] || keys['E']) { camera.position.addScaledVector(upv, -MOVE_SPEED * dt); }
+        camera.lookAt(0, 0, 0);
       }
       renderer.render(scene, camera);
     });
@@ -142,6 +146,19 @@
       camera.position.copy(dir.multiplyScalar(Math.max(0.05, camera.position.length() + Math.sign(event.deltaY) * ZOOM_SPEED * 0.05)));
       camera.lookAt(0, 0, 0);
     }, { passive: false });
+    const fsBtn = document.getElementById("fs-btn");
+    fsBtn.addEventListener("click", () => {
+      if (!document.fullscreenElement) {
+        document.body.requestFullscreen();
+        fsBtn.innerHTML = "&#x22A0;";
+      } else {
+        document.exitFullscreen();
+        fsBtn.innerHTML = "&#x26F6;";
+      }
+    });
+    document.addEventListener("fullscreenchange", () => {
+      fsBtn.innerHTML = document.fullscreenElement ? "&#x22A0;" : "&#x26F6;";
+    });
   </script>
 </body>
 </html>
