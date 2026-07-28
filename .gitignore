@@ -4,7 +4,8 @@
 .DS_Store
 
 
+ml-sharp/
 outputs/
 uploads/
 
-ml-sharp/
+src/sharpsplat.egg-info
