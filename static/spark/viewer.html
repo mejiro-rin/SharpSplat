@@ -41,7 +41,10 @@
     scene.fog = new THREE.Fog(0x0b1020, 8, 24);
 
     const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.01, 1000);
-    camera.position.set(0, 0.2, 4.5);
+
+    // 初始相机位置设置
+    camera.position.set(0, -0.2, 1);
+    camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -55,16 +58,12 @@
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
-    const orbit = { radius: 4.5, theta: 0, phi: 0.2 };
     const loader = new SplatLoader();
+    const keys = {};
+    const clock = new THREE.Clock();
+    const MOVE_SPEED = 2.5;
+    const ZOOM_SPEED = 2.5;
 
-    const applyOrbit = () => {
-      const x = orbit.radius * Math.cos(orbit.phi) * Math.sin(orbit.theta);
-      const y = orbit.radius * Math.sin(orbit.phi);
-      const z = orbit.radius * Math.cos(orbit.phi) * Math.cos(orbit.theta);
-      camera.position.set(x, y, z);
-      camera.lookAt(0, 0, 0);
-    };
 
     const setStatus = (message, error = false) => {
       status.textContent = message;
@@ -79,6 +78,7 @@
         splat = new SplatMesh({ packedSplats: loadedSplat });
         splat.position.set(0, 0, 0);
         scene.add(splat);
+        splat.rotation.x = Math.PI;
         setStatus(`Loaded ${file}`);
       }).catch((error) => {
         setStatus(String(error), true);
@@ -104,19 +104,44 @@
       const dy = (event.clientY - lastY) / window.innerHeight;
       lastX = event.clientX;
       lastY = event.clientY;
-      orbit.theta -= dx * Math.PI * 1.5;
-      orbit.phi = Math.max(-1.1, Math.min(1.1, orbit.phi - dy * Math.PI * 1.2));
-      applyOrbit();
+      const r = camera.position.length();
+      const t = Math.atan2(camera.position.x, camera.position.z);
+      const p = Math.asin(Math.max(-1, Math.min(1, camera.position.y / r)));
+      const s = Math.max(0.05, Math.min(r, 1.0));
+      const nt = t - dx * Math.PI * 1.5 * s;
+      const np = Math.max(-1.4, Math.min(1.4, p - dy * Math.PI * 1.2 * s));
+      camera.position.set(r * Math.cos(np) * Math.sin(nt), r * Math.sin(np), r * Math.cos(np) * Math.cos(nt));
+      camera.lookAt(0, 0, 0);
     });
 
-    applyOrbit();
-
     renderer.setAnimationLoop(() => {
-      if (splat) {
-        splat.rotation.y += 0.002;
+      const dt = Math.min(clock.getDelta(), 0.05);
+      if (keys['w'] || keys['W'] || keys['s'] || keys['S'] || keys['a'] || keys['A'] || keys['d'] || keys['D'] || keys['q'] || keys['Q'] || keys['e'] || keys['E']) {
+        const q = camera.quaternion;
+        const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
+        const upv = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
+        if (keys['w'] || keys['W']) { camera.position.addScaledVector(fwd, MOVE_SPEED * dt); }
+        if (keys['s'] || keys['S']) { camera.position.addScaledVector(fwd, -MOVE_SPEED * dt); }
+        if (keys['a'] || keys['A']) { camera.position.addScaledVector(right, -MOVE_SPEED * dt); }
+        if (keys['d'] || keys['D']) { camera.position.addScaledVector(right, MOVE_SPEED * dt); }
+        if (keys['q'] || keys['Q']) { camera.position.addScaledVector(upv, MOVE_SPEED * dt); }
+        if (keys['e'] || keys['E']) { camera.position.addScaledVector(upv, -MOVE_SPEED * dt); }
       }
       renderer.render(scene, camera);
     });
+    window.addEventListener('keydown', (event) => {
+      keys[event.key] = true;
+    });
+    window.addEventListener('keyup', (event) => {
+      keys[event.key] = false;
+    });
+    window.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      const dir = new THREE.Vector3().copy(camera.position).normalize();
+      camera.position.copy(dir.multiplyScalar(Math.max(0.05, camera.position.length() + Math.sign(event.deltaY) * ZOOM_SPEED * 0.05)));
+      camera.lookAt(0, 0, 0);
+    }, { passive: false });
   </script>
 </body>
 </html>
