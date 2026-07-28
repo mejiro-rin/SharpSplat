@@ -16,16 +16,17 @@ class SharpSplatUI:
         self.viewer = viewer
 
     def scan_existing_results(self) -> list[str]:
-        return self.repository.existing_result_names()
+        choices = self.repository.existing_result_names()
+        return gr.update(choices=choices, value=choices[0] if choices else None)
 
     def run_predictions(self, image_paths, progress=gr.Progress()):
         try:
             results = self.predictor.predict_many(image_paths, progress=progress)
         except FileNotFoundError:
-            return [], [], "<div style=color:red>sharp not found</div>"
+            return [], gr.update(choices=[], value=None), "<div style=color:red>sharp not found</div>"
 
         choices = [result.name for result in results if result.has_ply]
-        return [result.to_dict() for result in results], choices, self.render_results(results)
+        return [result.to_dict() for result in results], gr.update(choices=choices, value=choices[0] if choices else None), self.render_results(results)
 
     def render_results(self, results: list[PredictionResult]) -> str:
         cards = []
@@ -60,20 +61,22 @@ class SharpSplatUI:
     def build(self) -> gr.Blocks:
         with gr.Blocks(title="SharpSplat") as app:
             gr.HTML("<h2>SharpSplat</h2><p style=color:#666>SHARP 3D Gaussian Splatting</p>")
+            result_dropdown = gr.Dropdown(label="Select result", choices=[], interactive=True)
             with gr.Tabs():
+                with gr.Tab("3D Viewer"):
+                    view = gr.Button("View in 3D", variant="primary")
+                    iframe = gr.HTML('<p style=color:#999;padding:20px>Select a result and click View in 3D</p>')
+                    result_dropdown.change(fn=self.open_viewer, inputs=[result_dropdown], outputs=[iframe])
+                    view.click(fn=self.open_viewer, inputs=[result_dropdown], outputs=[iframe])
                 with gr.Tab("Process"):
                     files = gr.File(label="Images", file_count="multiple", file_types=["image"])
                     start = gr.Button("Start", variant="primary")
                     html = gr.HTML("<p style=color:#999;padding:20px>Upload images and click Start</p>")
                     results_state = gr.State([])
-                    choices_state = gr.State([])
-                    app.load(fn=self.scan_existing_results, outputs=[choices_state])
-                    start.click(fn=self.run_predictions, inputs=[files], outputs=[results_state, choices_state, html])
-                with gr.Tab("3D Viewer"):
-                    dropdown = gr.Dropdown(label="Select result", choices=[], interactive=True)
-                    choices_state.change(fn=lambda value: gr.update(choices=value), inputs=[choices_state], outputs=[dropdown])
-                    view = gr.Button("View in 3D", variant="primary")
-                    iframe = gr.HTML('<p style=color:#999;padding:20px>Select a result and click View in 3D</p>')
-                    dropdown.change(fn=self.open_viewer, inputs=[dropdown], outputs=[iframe])
-                    view.click(fn=self.open_viewer, inputs=[dropdown], outputs=[iframe])
+                    app.load(fn=self.scan_existing_results, outputs=[result_dropdown])
+                    start.click(
+                        fn=self.run_predictions,
+                        inputs=[files],
+                        outputs=[results_state, result_dropdown, html],
+                    )
         return app
