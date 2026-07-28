@@ -8,4 +8,5 @@ ml-sharp/
 outputs/
 uploads/
 
-src/sharpsplat.egg-info
+__pycache__/
+src/sharpsplat.egg-info/
