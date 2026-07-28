@@ -1,6 +1,6 @@
 [project]
 name = "sharpsplat"
-version = "0.1.0"
+version = "0.1.1"
 description = "图形化 SHARP 3D Gaussian Splatting 生成与浏览工具"
 requires-python = ">=3.13"
 dependencies = [
