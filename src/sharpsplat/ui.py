@@ -10,16 +10,25 @@ from .viewer import ViewerServer
 
 
 class SharpSplatUI:
+    """
+    用户界面类，使用Gradio构建Web界面，允许用户上传图像、运行预测并查看结果。
+    """
     def __init__(self, predictor: SharpPredictor, repository: ResultRepository, viewer: ViewerServer) -> None:
         self.predictor = predictor
         self.repository = repository
         self.viewer = viewer
 
     def scan_existing_results(self) -> list[str]:
+        """
+        扫描现有的预测结果，并返回一个包含结果名称的列表，用于在UI中显示。
+        """
         choices = self.repository.existing_result_names()
         return gr.update(choices=choices, value=choices[0] if choices else None)
 
     def run_predictions(self, image_paths, progress=gr.Progress()):
+        """
+        运行任务，并返回结果和渲染的HTML内容。
+        """
         try:
             results = self.predictor.predict_many(image_paths, progress=progress)
         except FileNotFoundError:
@@ -28,6 +37,9 @@ class SharpSplatUI:
         return [result.to_dict() for result in results], self.render_results(results)
 
     def render_results(self, results: list[PredictionResult]) -> str:
+        """
+        渲染预测结果为HTML字符串，用于在UI中显示。
+        """
         cards = []
         for result in results:
             badge_class = "done" if result.status == "done" else "fail"
@@ -52,6 +64,9 @@ class SharpSplatUI:
         return "<div class=grid>" + "".join(cards) + "</div><style>" + style + "</style>"
 
     def open_viewer(self, ply_name: str | None) -> str:
+        """
+        打开3D查看器，并返回一个包含iframe的HTML字符串，用于在UI中显示3D模型。
+        """
         if not ply_name:
             return '<p style=color:#999>Select a result first</p>'
         url = self.viewer.viewer_url(ply_name)

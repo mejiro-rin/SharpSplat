@@ -7,12 +7,18 @@ from .repository import PredictionResult, ResultRepository
 
 
 class SharpPredictor:
+    """
+    预测器类，负责调用Apple的ml-sharp工具进行推理。
+    """
     def __init__(self, repository: ResultRepository, timeout_seconds: int, device: str) -> None:
         self.repository = repository
         self.timeout_seconds = timeout_seconds
         self.device = device
 
     def predict_many(self, image_paths, progress=None) -> list[PredictionResult]:
+        """
+        对多个图像路径进行预测，并返回预测结果列表。
+        """
         results: list[PredictionResult] = []
         iterable = progress.tqdm(image_paths) if progress is not None else image_paths
 
