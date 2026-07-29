@@ -52,7 +52,21 @@
 
     // 初始相机位置设置
     camera.position.set(0, -0.2, 1);
-    camera.lookAt(0, 0, 0);
+
+    // 初始"正视图像"时的朝前方向：从初始相机坐标 (0,-0.2,1) 指向原点，
+    // 主要是 -Z，带一点 +Y 的仰角修正
+    const INITIAL_FORWARD = new THREE.Vector3(0, 0, 0)
+      .sub(new THREE.Vector3(0, -0.2, 1))
+      .normalize();
+    const LOOK_BIAS = 1; // 瞄准点沿 INITIAL_FORWARD 方向偏移的距离，调大偏向图像更明显
+    const LOOK_TARGET = new THREE.Vector3(0, 0, 0).addScaledVector(INITIAL_FORWARD, LOOK_BIAS);
+
+    camera.lookAt(LOOK_TARGET);
+
+    // 右/上方向只在初始化时算一次，作为平移的固定参考轴；
+    // 相机朝向不锁定，每次移动后都会重新 lookAt(LOOK_TARGET)
+    const RIGHT_AXIS = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    const UP_AXIS = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -63,14 +77,12 @@
     scene.add(spark);
 
     let splat = null;
-    let dragging = false;
-    let lastX = 0;
-    let lastY = 0;
     const loader = new SplatLoader();
     const keys = {};
     const clock = new THREE.Clock();
-    const MOVE_SPEED = 2.5;
-    const ZOOM_SPEED = 2.5;
+    const KEY_MOVE_SPEED = 0.6; // WASD 平移速度，会按当前缩放距离等比调整
+    const ZOOM_SPEED = 0.1;     // 每次滚轮的等比缩放系数
+    const MIN_R = 0.1;          // 相机离原点的最小距离，防止穿过原点导致 NaN
 
 
     const setStatus = (message, error = false) => {
@@ -100,41 +112,29 @@
     };
 
     window.addEventListener("resize", onResize);
-    window.addEventListener("pointerdown", (event) => {
-      dragging = true;
-      lastX = event.clientX;
-      lastY = event.clientY;
-    });
-    window.addEventListener("pointerup", () => { dragging = false; });
-    window.addEventListener("pointermove", (event) => {
-      if (!dragging) return;
-      const dx = (event.clientX - lastX) / window.innerWidth;
-      const dy = (event.clientY - lastY) / window.innerHeight;
-      lastX = event.clientX;
-      lastY = event.clientY;
-      const r = camera.position.length();
-      const t = Math.atan2(camera.position.x, camera.position.z);
-      const p = Math.asin(Math.max(-1, Math.min(1, camera.position.y / r)));
-      const s = Math.max(0.05, Math.min(r, 1.0));
-      const nt = t - dx * Math.PI * 1.5 * s;
-      const np = Math.max(-1.4, Math.min(1.4, p - dy * Math.PI * 1.2 * s));
-      camera.position.set(r * Math.cos(np) * Math.sin(nt), r * Math.sin(np), r * Math.cos(np) * Math.cos(nt));
-      camera.lookAt(0, 0, 0);
-    });
 
     renderer.setAnimationLoop(() => {
       const dt = Math.min(clock.getDelta(), 0.05);
-      if (keys['w'] || keys['W'] || keys['s'] || keys['S'] || keys['a'] || keys['A'] || keys['d'] || keys['D'] || keys['q'] || keys['Q'] || keys['e'] || keys['E']) {
-        const q = camera.quaternion;
-        const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
-        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
-        const upv = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
-        if (keys['w'] || keys['W']) { camera.position.addScaledVector(fwd, MOVE_SPEED * dt); }
-        if (keys['s'] || keys['S']) { camera.position.addScaledVector(fwd, -MOVE_SPEED * dt); }
-        if (keys['a'] || keys['A']) { camera.position.addScaledVector(right, -MOVE_SPEED * dt); }
-        if (keys['d'] || keys['D']) { camera.position.addScaledVector(right, MOVE_SPEED * dt); }
-        if (keys['q'] || keys['Q']) { camera.position.addScaledVector(upv, MOVE_SPEED * dt); }
-        if (keys['e'] || keys['E']) { camera.position.addScaledVector(upv, -MOVE_SPEED * dt); }
+      if (keys['w'] || keys['W'] || keys['s'] || keys['S'] || keys['a'] || keys['A'] || keys['d'] || keys['D']) {
+        // 平移速度按当前离 LOOK_TARGET（图像中心）的距离等比缩放，近处细腻、远处依然有效
+        const toCam = camera.position.clone().sub(LOOK_TARGET);
+        const r = Math.max(toCam.length(), MIN_R);
+        const speed = KEY_MOVE_SPEED * r;
+        if (keys['w'] || keys['W']) { camera.position.addScaledVector(UP_AXIS, speed * dt); }
+        if (keys['s'] || keys['S']) { camera.position.addScaledVector(UP_AXIS, -speed * dt); }
+        if (keys['a'] || keys['A']) { camera.position.addScaledVector(RIGHT_AXIS, -speed * dt); }
+        if (keys['d'] || keys['D']) { camera.position.addScaledVector(RIGHT_AXIS, speed * dt); }
+        // 防止平移把相机带到 LOOK_TARGET 附近，否则滚轮缩放的 normalize() 会算出 NaN
+        const afterToCam = camera.position.clone().sub(LOOK_TARGET);
+        if (afterToCam.lengthSq() < MIN_R * MIN_R) {
+          if (afterToCam.lengthSq() < 1e-10) {
+            camera.position.copy(LOOK_TARGET).add(new THREE.Vector3(0, 0, MIN_R));
+          } else {
+            camera.position.copy(LOOK_TARGET).addScaledVector(afterToCam.normalize(), MIN_R);
+          }
+        }
+        // 始终朝向图像正前方偏移点：位置变化后重新对准，上下左右移动都保持看向该点
+        camera.lookAt(LOOK_TARGET);
       }
       renderer.render(scene, camera);
     });
@@ -146,9 +146,14 @@
     });
     window.addEventListener('wheel', (event) => {
       event.preventDefault();
-      const dir = new THREE.Vector3().copy(camera.position).normalize();
-      camera.position.copy(dir.multiplyScalar(Math.max(0.05, camera.position.length() + Math.sign(event.deltaY) * ZOOM_SPEED * 0.05)));
-      camera.lookAt(0, 0, 0);
+      const toCam = camera.position.clone().sub(LOOK_TARGET);
+      const dir = toCam.clone().normalize();
+      const r = toCam.length();
+      // 等比缩放：远处大步长、近处小步长，避免线性增量导致近处失控
+      const factor = event.deltaY > 0 ? (1 + ZOOM_SPEED) : (1 - ZOOM_SPEED);
+      const newR = Math.max(MIN_R, r * factor);
+      camera.position.copy(LOOK_TARGET).addScaledVector(dir, newR);
+      camera.lookAt(LOOK_TARGET);
     }, { passive: false });
     const fsBtn = document.getElementById("fs-btn");
     fsBtn.addEventListener("click", () => {
