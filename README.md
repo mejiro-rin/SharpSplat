@@ -64,6 +64,10 @@ SharpSplat/
 └── start.bat / start.sh
 ```
 
+## 日志
+
+- **v0.1.1** 首个发布版本为试用版，ply渲染器有坐标冲突问题，跨越坐标轴正负区域时同时操作鼠标和键盘会发生视角跳转，正在研究解决方案。
+
 ## 参考
 
 - [apple/ml-sharp](https://github.com/apple/ml-sharp) — Sharp Monocular View Synthesis in Less Than a Second

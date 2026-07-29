@@ -69,8 +69,10 @@
     const loader = new SplatLoader();
     const keys = {};
     const clock = new THREE.Clock();
-    const MOVE_SPEED = 2.5;
-    const ZOOM_SPEED = 2.5;
+    const KEY_ROT_SPEED = 0.5; // WASD 角度旋转速度，弧度/秒
+    const ZOOM_SPEED = 0.1;   // 每次滚轮的等比缩放系数
+    const ROT_SPEED = 0.4;    // 鼠标拖拽旋转灵敏度，不再随缩放半径变化
+    const MIN_R = 0.1;        // 相机离原点的最小距离，防止穿过原点导致 NaN
 
 
     const setStatus = (message, error = false) => {
@@ -100,7 +102,10 @@
     };
 
     window.addEventListener("resize", onResize);
-    window.addEventListener("pointerdown", (event) => {
+
+    // 只在渲染画布上响应左键拖拽，避免与overlay面板、右键菜单冲突
+    renderer.domElement.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
       dragging = true;
       lastX = event.clientX;
       lastY = event.clientY;
@@ -115,26 +120,29 @@
       const r = camera.position.length();
       const t = Math.atan2(camera.position.x, camera.position.z);
       const p = Math.asin(Math.max(-1, Math.min(1, camera.position.y / r)));
-      const s = Math.max(0.05, Math.min(r, 1.0));
-      const nt = t - dx * Math.PI * 1.5 * s;
-      const np = Math.max(-1.4, Math.min(1.4, p - dy * Math.PI * 1.2 * s));
+      // 旋转灵敏度固定，不再随半径缩放导致近处转不动
+      const nt = t - dx * Math.PI * ROT_SPEED;
+      const np = Math.max(-1.4, Math.min(1.4, p - dy * Math.PI * ROT_SPEED * 0.8));
       camera.position.set(r * Math.cos(np) * Math.sin(nt), r * Math.sin(np), r * Math.cos(np) * Math.cos(nt));
       camera.lookAt(0, 0, 0);
     });
 
     renderer.setAnimationLoop(() => {
       const dt = Math.min(clock.getDelta(), 0.05);
-      if (keys['w'] || keys['W'] || keys['s'] || keys['S'] || keys['a'] || keys['A'] || keys['d'] || keys['D'] || keys['q'] || keys['Q'] || keys['e'] || keys['E']) {
-        const q = camera.quaternion;
-        const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
-        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
-        const upv = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
-        if (keys['w'] || keys['W']) { camera.position.addScaledVector(fwd, MOVE_SPEED * dt); }
-        if (keys['s'] || keys['S']) { camera.position.addScaledVector(fwd, -MOVE_SPEED * dt); }
-        if (keys['a'] || keys['A']) { camera.position.addScaledVector(right, -MOVE_SPEED * dt); }
-        if (keys['d'] || keys['D']) { camera.position.addScaledVector(right, MOVE_SPEED * dt); }
-        if (keys['q'] || keys['Q']) { camera.position.addScaledVector(upv, MOVE_SPEED * dt); }
-        if (keys['e'] || keys['E']) { camera.position.addScaledVector(upv, -MOVE_SPEED * dt); }
+      if (keys['w'] || keys['W'] || keys['s'] || keys['S'] || keys['a'] || keys['A'] || keys['d'] || keys['D']) {
+        const r = camera.position.length();
+        const t = Math.atan2(camera.position.x, camera.position.z);
+        const p = Math.asin(Math.max(-1, Math.min(1, camera.position.y / r)));
+        let nt = t;
+        let np = p;
+        // A/D 控制水平角度（偏航），W/S 控制俯仰角度，半径r不变
+        if (keys['a'] || keys['A']) { nt -= KEY_ROT_SPEED * dt; }
+        if (keys['d'] || keys['D']) { nt += KEY_ROT_SPEED * dt; }
+        if (keys['w'] || keys['W']) { np += KEY_ROT_SPEED * dt; }
+        if (keys['s'] || keys['S']) { np -= KEY_ROT_SPEED * dt; }
+        np = Math.max(-1.4, Math.min(1.4, np));
+        camera.position.set(r * Math.cos(np) * Math.sin(nt), r * Math.sin(np), r * Math.cos(np) * Math.cos(nt));
+        camera.lookAt(0, 0, 0);
       }
       renderer.render(scene, camera);
     });
@@ -147,7 +155,11 @@
     window.addEventListener('wheel', (event) => {
       event.preventDefault();
       const dir = new THREE.Vector3().copy(camera.position).normalize();
-      camera.position.copy(dir.multiplyScalar(Math.max(0.05, camera.position.length() + Math.sign(event.deltaY) * ZOOM_SPEED * 0.05)));
+      const r = camera.position.length();
+      // 等比缩放：远处大步长、近处小步长，避免线性增量导致近处失控
+      const factor = event.deltaY > 0 ? (1 + ZOOM_SPEED) : (1 - ZOOM_SPEED);
+      const newR = Math.max(MIN_R, r * factor);
+      camera.position.copy(dir.multiplyScalar(newR));
       camera.lookAt(0, 0, 0);
     }, { passive: false });
     const fsBtn = document.getElementById("fs-btn");
