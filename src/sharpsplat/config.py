@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import shutil
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +40,13 @@ def discover_paths() -> AppPaths:
 
     outputs_dir.mkdir(exist_ok=True)
     uploads_dir.mkdir(exist_ok=True)
+
+    # 清空上次的 uploads
+    for item in uploads_dir.iterdir():
+        if item.is_dir():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
 
     return AppPaths(
         base_dir=base_dir,
